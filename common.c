@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
 
@@ -23,7 +24,7 @@ void ErrorExit(char *fmt, ...)
   vsprintf(msg, fmt, list);
   va_end(list);
 
-  printf(msg);
+  printf("%s", msg);
   exit(-1);
 }
 
