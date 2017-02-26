@@ -589,17 +589,22 @@ void convert(char *input, char *output, char *title, char *code,
   fclose(base);
 }
 
+void usage(char *prog) {
+  ErrorExit("Usage: %s title gamecode compressionlevel file.bin\n",
+            prog);
+}
+
 int main(int argc, char *argv[]) {
   int i;
 
   if (argc != 5) {
-    ErrorExit("Invalid number of arguments.\n"
-              "Usage: %s title gamecode compressionlevel file.bin\n",
-              argv[0]);
+    printf("Invalid number of arguments.\n");
+    usage(argv[0]);
   }
 
   if (strlen(argv[2]) != 9) {
-    ErrorExit("Invalid game code.\n");
+    printf("Invalid game code.\n");
+    usage(argv[0]);
   }
 
   for (i = 0; i < N_GAME_CODES; i++) {
@@ -608,21 +613,25 @@ int main(int argc, char *argv[]) {
   }
 
   if (i == N_GAME_CODES) {
-    ErrorExit("Invalid game code.\n");
+    printf("Invalid game code.\n");
+    usage(argv[0]);
   }
 
   for (i = 4; i < 9; i++) {
     if (argv[2][i] < '0' || argv[2][i] > '9') {
-      ErrorExit("Invalid game code.\n");
+      printf("Invalid game code.\n");
+      usage(argv[0]);
     }
   }
 
   if (strlen(argv[3]) != 1) {
-    ErrorExit("Invalid compression level.\n");
+    printf("Invalid compression level.\n");
+    usage(argv[0]);
   }
 
   if (argv[3][0] < '0' || argv[3][0] > '9') {
-    ErrorExit("Invalid compression level.\n");
+    printf("Invalid compression level.\n");
+    usage(argv[0]);
   }
 
   convert(argv[4], "EBOOT.PBP", argv[1], argv[2], argv[3][0] - '0');
