@@ -976,10 +976,12 @@ unsigned char data2[11740] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
-#ifdef WIN32
-
+#ifndef WIN32
+typedef struct __attribute__((packed))
+#else
 #pragma pack(1)
-struct tocentry
+typedef struct
+#endif
 {
 	unsigned char adr: 4;
 	unsigned char control: 4;
@@ -992,8 +994,10 @@ struct tocentry
 	unsigned char pmin;
 	unsigned char psec;
 	unsigned char pframe;
-};
+} tocentry;
+#ifdef WIN32
 #pragma pack()
+#endif
 
 unsigned char bcd(unsigned char value)
 {
@@ -1009,7 +1013,7 @@ unsigned char bcd(unsigned char value)
 	return result;
 }
 
-//Tinnus
+#ifdef WIN32
 void* create_toc(char* isoname, int* size)
 {
 	int len = strlen(isoname);
