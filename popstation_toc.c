@@ -1021,7 +1021,6 @@ void* create_toc(char* isoname, int* size)
 	char entryvalue[10];
 	struct tocentry *entries;
 	int count, i;
-	//FILE *out = NULL;
 
 	strcpy(ccdname, isoname);
 	ccdname[len-3] = 'c';
@@ -1045,15 +1044,11 @@ void* create_toc(char* isoname, int* size)
 		_snprintf(inName, _MAX_PATH, ccdname);
 	}
 
-	//_snprintf(outName, _MAX_PATH, argv[2]);
-
 	count = GetPrivateProfileInt("Disc", "TocEntries", -1, inName);
 
 	if (count == -1)
 	{
 		printf("Failed to get TOC count from CCD, are you sure it's a valid CCD file?\r\n");
-		//free(out);
-		//return 1;
 
 		return NULL;
 	}
@@ -1102,21 +1097,6 @@ void* create_toc(char* isoname, int* size)
 	}
 
 	*size = sizeof(struct tocentry) * count;
-
-	/*out = fopen(outName, "wb");
-
-	if (out == NULL)
-	{
-		printf("Failed to open %s.\r\n", argv[2]);
-		free(entries);
-		return 1;
-	}
-
-	fwrite(entries, sizeof(struct tocentry), count, out);
-	fclose(out);
-
-	printf("All done.\r\n");
-	free(entries);*/
 
 	return entries;
 }
