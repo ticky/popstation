@@ -1014,6 +1014,9 @@ unsigned char bcd(unsigned char value)
 }
 
 #ifdef WIN32
+#define snprintf _snprintf
+// #endif
+
 void* create_toc(char* isoname, int* size)
 {
 	int len = strlen(isoname);
@@ -1041,11 +1044,11 @@ void* create_toc(char* isoname, int* size)
 
 	if (strrchr(ccdname, '\\') == NULL && strrchr(ccdname, '/') == NULL)
 	{
-		_snprintf(inName, _MAX_PATH, ".\\%s", ccdname);
+		snprintf(inName, _MAX_PATH, ".\\%s", ccdname);
 	}
 	else
 	{
-		_snprintf(inName, _MAX_PATH, ccdname);
+		snprintf(inName, _MAX_PATH, ccdname);
 	}
 
 	count = GetPrivateProfileInt("Disc", "TocEntries", -1, inName);
@@ -1061,7 +1064,7 @@ void* create_toc(char* isoname, int* size)
 
 	for (i = 0; i < count; i++)
 	{
-		_snprintf(entryname, 9, "Entry %d", i);
+		snprintf(entryname, 9, "Entry %d", i);
 
 		GetPrivateProfileString(entryname, "Control", "1", entryvalue, 10, inName);
 		entries[i].control = (unsigned char)(strtol(entryvalue, NULL, 0) & 0xF);
