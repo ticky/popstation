@@ -11,7 +11,7 @@ sha256: 5924c28aa101a98eb8a084bd41c8a886f5bbe7768525ee86a85d66e714088054
 
 Compile
 -------
-Just run `make`, requires zlib
+Just run `make`, requires zlib and iniparser
 
 License
 -------
