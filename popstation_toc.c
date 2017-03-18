@@ -9,6 +9,11 @@
 #include <windows.h>
 #endif
 #include <zlib.h>
+#include "iniparser.h"
+
+#ifdef WIN32
+#define snprintf _snprintf
+#endif
 
 unsigned char data1[3616] =
 {
@@ -1016,45 +1021,45 @@ unsigned char bcd(unsigned char value)
 	return result;
 }
 
-#ifdef WIN32
-#define snprintf _snprintf
-// #endif
-
-void* create_toc(char* isoname, int* size)
+// wrapper for iniparser_getstring to let you specify a section and key separately
+char* ini_get_string_from_section(dictionary* dict, const char* section, const char* key, char* def)
 {
-	int len = strlen(isoname);
-	char* ccdname = (char*)malloc((len + 1) * sizeof(char));
-	void* ret_ptr = NULL;
-	FILE* f;
-	char inName[_MAX_PATH], outName[_MAX_PATH];
-	char entryname[10];
-	char entryvalue[10];
-	struct tocentry *entries;
+	int key_length = strlen(key);
+	char* joined_key = (char*)malloc((9 + key_length + 1) * sizeof(char));
+	snprintf(joined_key, 9 + key_length, "%s:%s", section, key);
+	return iniparser_getstring(dict, joined_key, def);
+}
+
+void* create_toc(char* iso_name, int* size)
+{
+	int iso_name_length = strlen(iso_name);
+	char* ccd_name = (char*)malloc((iso_name_length + 1) * sizeof(char));
+	char entry_header[10];
+	dictionary * ccd_dict;
+	tocentry *entries;
 	int count, i;
 
-	strcpy(ccdname, isoname);
-	ccdname[len-3] = 'c';
-	ccdname[len-2] = 'c';
-	ccdname[len-1] = 'd';
+	strcpy(ccd_name, iso_name);
+	ccd_name[iso_name_length-3] = 'c';
+	ccd_name[iso_name_length-2] = 'c';
+	ccd_name[iso_name_length-1] = 'd';
 
-	f = fopen(ccdname,"rb");
-	if(!f) return NULL;
-	fclose(f);
+	// if (strrchr(ccd_name, '\\') == NULL && strrchr(ccd_name, '/') == NULL)
+	// {
+	// 	snprintf(inName, _MAX_PATH, ".\\%s", ccd_name);
+	// }
+	// else
+	// {
+	// 	snprintf(inName, _MAX_PATH, ccd_name);
+	// }
 
-	printf("maketoc by rck\r\n  converts .ccd to .toc\r\n");
-	printf("  popstation embedded version by Tinnus\r\n");
-	printf("  ccd file: %s\r\n\r\n",ccdname);
+	ccd_dict = iniparser_load(ccd_name);
 
-	if (strrchr(ccdname, '\\') == NULL && strrchr(ccdname, '/') == NULL)
-	{
-		snprintf(inName, _MAX_PATH, ".\\%s", ccdname);
-	}
-	else
-	{
-		snprintf(inName, _MAX_PATH, ccdname);
-	}
+	printf("maketoc by rck\n  converts .ccd to .toc\n");
+	printf("  popstation embedded version by Tinnus\n");
+	printf("  ccd file: %s\n", ccd_name);
 
-	count = GetPrivateProfileInt("Disc", "TocEntries", -1, inName);
+	count = iniparser_getint(ccd_dict, "Disc:TocEntries", -1);
 
 	if (count == -1)
 	{
@@ -1063,62 +1068,44 @@ void* create_toc(char* isoname, int* size)
 		return NULL;
 	}
 
-	entries = (struct tocentry *)malloc(sizeof(struct tocentry) * count);
+	entries = (tocentry *)malloc(sizeof(tocentry) * count);
 
 	for (i = 0; i < count; i++)
 	{
-		snprintf(entryname, 9, "Entry %d", i);
+		snprintf(entry_header, 9, "Entry %d", i);
 
-		GetPrivateProfileString(entryname, "Control", "1", entryvalue, 10, inName);
-		entries[i].control = (unsigned char)(strtol(entryvalue, NULL, 0) & 0xF);
+		entries[i].control = (unsigned char)(strtol(ini_get_string_from_section(ccd_dict, entry_header, "Control", "1"), NULL, 0) & 0xF);
 
-		GetPrivateProfileString(entryname, "ADR", "0", entryvalue, 10, inName);
-		entries[i].adr = (unsigned char)(strtol(entryvalue, NULL, 0) & 0xF);
+		entries[i].adr = (unsigned char)(strtol(ini_get_string_from_section(ccd_dict, entry_header, "ADR", "0"), NULL, 0) & 0xF);
 
-		GetPrivateProfileString(entryname, "TrackNo", "0", entryvalue, 10, inName);
-		entries[i].tno = (unsigned char)strtol(entryvalue, NULL, 0);
+		entries[i].tno = (unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "TrackNo", "0"), NULL, 0);
 
-		GetPrivateProfileString(entryname, "Point", "0", entryvalue, 10, inName);
-		entries[i].point = (unsigned char)strtol(entryvalue, NULL, 0);
+		entries[i].point = (unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "Point", "0"), NULL, 0);
 
 
-		GetPrivateProfileString(entryname, "AMin", "0", entryvalue, 10, inName);
-		entries[i].amin = bcd((unsigned char)strtol(entryvalue, NULL, 0));
+		entries[i].amin = bcd((unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "AMin", "0"), NULL, 0));
 
-		GetPrivateProfileString(entryname, "ASec", "0", entryvalue, 10, inName);
-		entries[i].asec = bcd((unsigned char)strtol(entryvalue, NULL, 0));
+		entries[i].asec = bcd((unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "ASec", "0"), NULL, 0));
 
-		GetPrivateProfileString(entryname, "AFrame", "0", entryvalue, 10, inName);
-		entries[i].aframe = bcd((unsigned char)strtol(entryvalue, NULL, 0));
+		entries[i].aframe = bcd((unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "AFrame", "0"), NULL, 0));
 
 
-		GetPrivateProfileString(entryname, "Zero", "0", entryvalue, 10, inName);
-		entries[i].zero = (unsigned char)strtol(entryvalue, NULL, 0);
+		entries[i].zero = (unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "Zero", "0"), NULL, 0);
 
 
-		GetPrivateProfileString(entryname, "PMin", "0", entryvalue, 10, inName);
-		entries[i].pmin = bcd((unsigned char)strtol(entryvalue, NULL, 0));
+		entries[i].pmin = bcd((unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "PMin", "0"), NULL, 0));
 
-		GetPrivateProfileString(entryname, "PSec", "0", entryvalue, 10, inName);
-		entries[i].psec = bcd((unsigned char)strtol(entryvalue, NULL, 0));
+		entries[i].psec = bcd((unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "PSec", "0"), NULL, 0));
 
-		GetPrivateProfileString(entryname, "PFrame", "0", entryvalue, 10, inName);
-		entries[i].pframe = bcd((unsigned char)strtol(entryvalue, NULL, 0));
+		entries[i].pframe = bcd((unsigned char)strtol(ini_get_string_from_section(ccd_dict, entry_header, "PFrame", "0"), NULL, 0));
 	}
 
-	*size = sizeof(struct tocentry) * count;
+	iniparser_freedict(ccd_dict);
+
+	*size = sizeof(tocentry) * count;
 
 	return entries;
 }
-
-#else
-
-void* create_toc(char* isoname, int* size)
-{
-	return NULL;
-}
-
-#endif
 
 int getsize(FILE *f)
 {
