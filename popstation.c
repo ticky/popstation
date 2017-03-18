@@ -1239,9 +1239,9 @@ void convert(char *input, char *output, char *title, char *code, int complevel)
 
 	x = header[8] + prx_size;
 
-	if ((x % 0x50000) != 0)
+	if ((x % 0x10000) != 0)
 	{
-		x = x + (0x50000 - (x % 0x50000));
+		x = x + (0x10000 - (x % 0x10000));
 	}
 	
 	header[9] = x;
