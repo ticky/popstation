@@ -1000,6 +1000,8 @@ typedef struct
 #pragma pack()
 #endif
 
+// convert to non-packed binary-coded decimal
+// https://en.wikipedia.org/wiki/Binary-coded_decimal#Basics
 unsigned char bcd(unsigned char value)
 {
 	unsigned int i;
