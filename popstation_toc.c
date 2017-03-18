@@ -1751,7 +1751,7 @@ int main(int argc, char *argv[])
 	if (argc != 5)
 	{
 		ErrorExit("Invalid number of arguments.\n"
-				  "Usage: %s title gamecode compressionlevel file.iso\n", argv[0]);
+				  "Usage: %s title gamecode compressionlevel file.bin\n", argv[0]);
 	}
 
 	if (strlen(argv[2]) != 9)
