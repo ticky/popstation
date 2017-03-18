@@ -1035,6 +1035,7 @@ void* create_toc(char* iso_name, int* size)
 	int iso_name_length = strlen(iso_name);
 	char* ccd_name = (char*)malloc((iso_name_length + 1) * sizeof(char));
 	char entry_header[10];
+	FILE* ccd_file;
 	dictionary * ccd_dict;
 	tocentry *entries;
 	int count, i;
@@ -1044,20 +1045,17 @@ void* create_toc(char* iso_name, int* size)
 	ccd_name[iso_name_length-2] = 'c';
 	ccd_name[iso_name_length-1] = 'd';
 
-	// if (strrchr(ccd_name, '\\') == NULL && strrchr(ccd_name, '/') == NULL)
-	// {
-	// 	snprintf(inName, _MAX_PATH, ".\\%s", ccd_name);
-	// }
-	// else
-	// {
-	// 	snprintf(inName, _MAX_PATH, ccd_name);
-	// }
+	ccd_file = fopen(ccd_name, "rb");
+	if(!ccd_file)
+	{
+		printf("No CCD file found. Assuming this is a pure-ISO9660 image!\n");
+		return NULL;
+	}
+	fclose(ccd_file);
+
+	printf("Making TOC from CCD file \"%s\"...\n", ccd_name);
 
 	ccd_dict = iniparser_load(ccd_name);
-
-	printf("maketoc by rck\n  converts .ccd to .toc\n");
-	printf("  popstation embedded version by Tinnus\n");
-	printf("  ccd file: %s\n", ccd_name);
 
 	count = iniparser_getint(ccd_dict, "Disc:TocEntries", -1);
 
