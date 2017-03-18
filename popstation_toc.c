@@ -1534,20 +1534,25 @@ void convert(char *input, char *output, char *title, char *code, int complevel)
 	memcpy(data1+1, code, 4);
 	memcpy(data1+6, code+4, 5);
 
-	//if (toc)
-	if (toc == 1)
+	if (toc != 0)
 	{
-		printf("  Copying toc to iso header...\n");
-
-		t = fopen("ISO.TOC", "rb");
-		fread(buffer, 1, toc_size, t);
-		memcpy(data1+1024, buffer, toc_size);
-		fclose(t);
+		printf("  Injecting TOC to iso header...\n");	
+		if (toc == 1)
+		{
+			t = fopen("ISO.TOC", "rb");
+			fread(buffer, 1, toc_size, t);
+			memcpy(data1+1024, buffer, toc_size);
+			fclose(t);
+		}
+		else if (toc == 2)
+		{
+			memcpy(data1+1024, tocptr, toc_size);
+			free(tocptr);
+		}
 	}
-	else if (toc == 2)
+	else
 	{
-		memcpy(data1+1024, tocptr, toc_size);
-		free(tocptr);
+		printf("  Not injecting a TOC...\n");
 	}
 
 	fwrite(data1, 1, sizeof(data1), out);
