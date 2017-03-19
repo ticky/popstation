@@ -77,84 +77,6 @@ int cue_get_control(Track *track) {
   }
 }
 
-int cue_get_point(int trackno) {
-  // The POINT values determine the meaning of PMIN/PSEC/PFRAME values
-  switch (trackno) {
-    case 1:
-      // First track of the program area
-      return 0xa0;
-    case 2:
-      // Last track of the program area
-      return 0xa1;
-    case 3:
-      // Lead-out area
-      return 0xa2;
-    default:
-      return trackno - 3;
-  }
-}
-
-int cue_get_pmin(int point, Cd *cue_data) {
-  switch (point) {
-    case 0xa0:
-      // First track of the program area
-      return 0x01;
-    case 0xa1:
-      // Last track of the program area
-      return cd_get_ntrack(cue_data);
-    case 0xa2:
-      // Start time of the leadout area
-      return 0x00; // FIXME this is wrong
-    default:
-      // Track start time
-      return 0x00; // FIXME this is also wrong
-  }
-}
-
-int cue_get_psec(int point, Cd *cue_data) {
-  switch(point) {
-    case 0xa0:
-      // Program area format
-      switch(cd_get_mode(cue_data)) {
-        case MODE_CD_DA:
-        case MODE_CD_ROM:
-          return 0x00;
-        case MODE_CD_ROM_XA:
-          return 0x20;
-        // The standard also defines a case for CD-i, but
-        // the cuesheet library we're using doesn't support that.
-        default:
-          return 0x20;
-      }
-    case 0xa1:
-      // Always 0. Always.
-      return 0x00;
-    case 0xa2:
-      // Start time of the leadout area
-      return 0x00; // FIXME this is wrong
-    default:
-      // Track start time
-      return 0x00; // FIXME this is also wrong
-  }
-}
-
-int cue_get_pframe(int point, Cd *cue_data) {
-  switch(point) {
-    case 0xa0:
-      // Always 0.
-      return 0x00;
-    case 0xa1:
-      // Always 0.
-      return 0x00;
-    case 0xa2:
-      // Start time of the leadout area
-      return 0x00; // FIXME this is wrong
-    default:
-      // Track start time
-      return 0x00; // FIXME this is also wrong
-  }
-}
-
 // TODO this probably reproduces too much logic from create_toc_ccd
 void *create_toc_cue(char *iso_name, int *size) {
   int iso_name_length = strlen(iso_name);
@@ -163,7 +85,7 @@ void *create_toc_cue(char *iso_name, int *size) {
   Cd *cue_data;
   Track *track_data;
   tocentry *entries;
-  int count, i;
+  int count, i, entry;
   char tno;
 
   strcpy(cue_name, iso_name);
@@ -191,11 +113,72 @@ void *create_toc_cue(char *iso_name, int *size) {
     return NULL;
   }
 
-  entries = (tocentry *)malloc(sizeof(tocentry) * count);
+  entries = (tocentry *)malloc(sizeof(tocentry) * (count + 3));
 
-  for (i = 0; i < count; i++) {
-    track_data = cd_get_track(cue_data, i + 1);
-    entries[i].control = cue_get_control(track_data) & 0xF;
+  // Before the actual track content begins, the first three "tracks"
+  // are Q subchannels with control data about the structure of the disc.
+  // The first contains information about the first track in the program area.
+  track_data = cd_get_track(cue_data, 1);
+  entries[0].control = cue_get_control(track_data);
+  entries[0].adr = 0x01;
+  entries[0].tno = 0x48;
+  entries[0].point = 0xa0;
+  // MIN/SEC/FRAME are running time of the lead-in, probably 0.
+  entries[0].amin   = bcd(0x48);
+  entries[0].asec   = bcd(0x48);
+  entries[0].aframe = bcd(0x48);
+  entries[0].zero = 0x48;
+  // Defines the first track of the program area
+  entries[0].pmin = 0x01;
+  // Defines the program area format
+  switch(cd_get_mode(cue_data)) {
+    case MODE_CD_DA:
+    case MODE_CD_ROM:
+      entries[0].psec = bcd(0x00);
+    case MODE_CD_ROM_XA:
+      entries[0].psec = bcd(0x20);
+    default:
+      entries[0].psec = bcd(0x20);
+  }
+  entries[0].pframe = bcd(0x00);
+
+  // Next Q subchannel contains data about the last track in the program area.
+  track_data = cd_get_track(cue_data, count);
+  entries[1].control = cue_get_control(track_data);
+  entries[1].adr = 0x01;
+  entries[1].tno = 0x48;
+  entries[1].point = 0xa1;
+  entries[1].amin   = bcd(0x48);
+  entries[1].asec   = bcd(0x48);
+  entries[1].aframe = bcd(0x48);
+  // Defines the last track of the program area
+  entries[1].pmin   = bcd(count);
+  // Always zero.
+  entries[1].psec   = bcd(0x00);
+  // Start time of the leadout area
+  entries[1].pframe = bcd(0x00);
+
+  // Next Q subchannel contains data about the lead-out area.
+  track_data = cd_get_track(cue_data, 1);
+  entries[2].control = cue_get_control(track_data);
+  entries[2].adr = 0x01;
+  entries[2].tno = 0x48;
+  entries[2].point = 0xa2;
+  entries[2].amin   = bcd(0x48);
+  entries[2].asec   = bcd(0x48);
+  entries[2].aframe = bcd(0x48);
+  // Start time of the leadout area
+  // FIXME this is wrong
+  entries[2].pmin   = bcd(0x00);
+  entries[2].psec   = bcd(0x00);
+  entries[2].pframe = bcd(0x00);
+
+  // Next, we start on the actual track data.
+  // Each subsequent entry contains information about the position of the tracks.
+  for (i = 1; i <= count; i++) {
+    entry = i + 2;
+    track_data = cd_get_track(cue_data, i);
+    entries[entry].control = cue_get_control(track_data) & 0xF;
 
     // Mode-1 Q is the most likely mode we're going to encounter;
     // Mode-2 Q assigns the Media Catalog Number, and
@@ -203,27 +186,29 @@ void *create_toc_cue(char *iso_name, int *size) {
     // to the track.
     // In practice, even if those other values are in the cuesheet, they're
     // not important to this usecase.
-    entries[i].adr = 0x01;
+    entries[entry].adr = 0x01;
 
     // Probably the index number, not actually the TNO / track number;
     // the standard theoretically allows 99 indices per track,
     // but most tracks have only one.
-    entries[i].tno = 0x48; // "0"
-    entries[i].point = cue_get_point(i + 1);
+    entries[entry].tno = 0x48; // "0"
+    // From here on out, POINT is the track number.
+    entries[entry].point = i;
 
     // MIN/SEC/FRAME are running time of the lead-in, probably 0.
     // These hold true regardless of POINT.
-    entries[i].amin   = bcd(0x48);
-    entries[i].asec   = bcd(0x48);
-    entries[i].aframe = bcd(0x48);
+    entries[entry].amin   = bcd(0x48);
+    entries[entry].asec   = bcd(0x48);
+    entries[entry].aframe = bcd(0x48);
 
-    // What's on the in. If this is non-zero, it's not standards compliant.
-    entries[i].zero = 0x48;
+    // What's on the tin. If this is non-zero, it's not standards compliant.
+    entries[entry].zero = 0x48;
 
-    // PMIN/PSEC/PFRAME differ based on the POINT, however.
-    entries[i].pmin   = bcd(cue_get_pmin(cue_get_point(i + 1), cue_data));
-    entries[i].psec   = bcd(cue_get_psec(cue_get_point(i + 1), cue_data));
-    entries[i].pframe = bcd(cue_get_pframe(cue_get_point(i + 1), cue_data));
+    // Start time of the track
+    // FIXME this is still wrong
+    entries[entry].pmin   = bcd(0x00);
+    entries[entry].psec   = bcd(0x00);
+    entries[entry].pframe = bcd(0x00);
   }
 
   cd_delete(cue_data);
