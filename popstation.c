@@ -9,6 +9,7 @@
 #include <windows.h>
 #endif
 #include "iniparser.h"
+#include "libcue.h"
 #include <zlib.h>
 
 #include "common.h"
@@ -65,7 +66,171 @@ char *ini_get_string_from_section(dictionary *dict, const char *section,
   return iniparser_getstring(dict, joined_key, def);
 }
 
-void *create_toc(char *iso_name, int *size) {
+int cue_get_control(Track *track) {
+  enum TrackMode mode = track_get_mode(track);
+  // TODO handle emphasis and quad-channel audio
+  if (mode == MODE_AUDIO) {
+    return 0x00;
+  // data
+  } else {
+    return 0x04;
+  }
+}
+
+int cue_get_point(int trackno) {
+  // The POINT values determine the meaning of PMIN/PSEC/PFRAME values
+  switch (trackno) {
+    case 1:
+      // First track of the program area
+      return 0xa0;
+    case 2:
+      // Last track of the program area
+      return 0xa1;
+    case 3:
+      // Lead-out area
+      return 0xa2;
+    default:
+      return trackno - 3;
+  }
+}
+
+int cue_get_pmin(int point, Cd *cue_data) {
+  switch (point) {
+    case 0xa0:
+      // First track of the program area
+      return 0x01;
+    case 0xa1:
+      // Last track of the program area
+      return cd_get_ntrack(cue_data);
+    case 0xa2:
+      // Start time of the leadout area
+      return 0x00; // FIXME this is wrong
+    default:
+      // Track start time
+      return 0x00; // FIXME this is also wrong
+  }
+}
+
+int cue_get_psec(int point, Cd *cue_data) {
+  switch(point) {
+    case 0xa0:
+      // Program area format
+      switch(cd_get_mode(cue_data)) {
+        case MODE_CD_DA:
+        case MODE_CD_ROM:
+          return 0x00;
+        case MODE_CD_ROM_XA:
+          return 0x20;
+        // The standard also defines a case for CD-i, but
+        // the cuesheet library we're using doesn't support that.
+        default:
+          return 0x20;
+      }
+    case 0xa1:
+      // Always 0. Always.
+      return 0x00;
+    case 0xa2:
+      // Start time of the leadout area
+      return 0x00; // FIXME this is wrong
+    default:
+      // Track start time
+      return 0x00; // FIXME this is also wrong
+  }
+}
+
+int cue_get_pframe(int point, Cd *cue_data) {
+  switch(point) {
+    case 0xa0:
+      // Always 0.
+      return 0x00;
+    case 0xa1:
+      // Always 0.
+      return 0x00;
+    case 0xa2:
+      // Start time of the leadout area
+      return 0x00; // FIXME this is wrong
+    default:
+      // Track start time
+      return 0x00; // FIXME this is also wrong
+  }
+}
+
+// TODO this probably reproduces too much logic from create_toc_ccd
+void *create_toc_cue(char *iso_name, int *size) {
+  int iso_name_length = strlen(iso_name);
+  char *cue_name = (char *)malloc((iso_name_length + 1) * sizeof(char));
+  FILE *cue_file;
+  Cd *cue_data;
+  Track *track_data;
+  tocentry *entries;
+  int count, i;
+  char tno;
+
+  strcpy(cue_name, iso_name);
+  cue_name[iso_name_length - 3] = 'c';
+  cue_name[iso_name_length - 2] = 'u';
+  cue_name[iso_name_length - 1] = 'e';
+
+  cue_file = fopen(cue_name, "rb");
+  if (!cue_file) {
+    printf("No CCD file found. Assuming this is a pure-ISO9660 image!\n");
+    return NULL;
+  }
+  fclose(cue_file);
+
+  printf("Making TOC from CUE file \"%s\"...\n", cue_name);
+
+  cue_data = cue_parse_file(cue_file);
+
+  count = cd_get_ntrack(cue_data);
+
+  if (count > 1) {
+    printf("Failed to get TOC count from CCD, are you sure it's a valid CCD "
+           "file?\n");
+
+    return NULL;
+  }
+
+  entries = (tocentry *)malloc(sizeof(tocentry) * count);
+
+  for (i = 0; i < count; i++) {
+    track_data = cd_get_track(cue_data, i + 1);
+    entries[i].control = cue_get_control(track_data) & 0xF;
+
+    // Mode-1 Q is the most likely mode we're going to encounter;
+    // Mode-2 Q assigns the Media Catalog Number, and
+    // Mode-3 Q assigns a unique International Standard Recording Code
+    // to the track.
+    // In practice, even if those other values are in the cuesheet, they're
+    // not important to this usecase.
+    entries[i].adr = 0x01;
+
+    // Probably the index number, not actually the TNO / track number;
+    // the standard theoretically allows 99 indices per track,
+    // but most tracks have only one.
+    entries[i].tno = 0x48; // "0"
+    entries[i].point = cue_get_point(i + 1);
+
+    // MIN/SEC/FRAME are running time of the lead-in, probably 0.
+    // These hold true regardless of POINT.
+    entries[i].amin   = bcd(0x48);
+    entries[i].asec   = bcd(0x48);
+    entries[i].aframe = bcd(0x48);
+
+    // What's on the in. If this is non-zero, it's not standards compliant.
+    entries[i].zero = 0x48;
+
+    // PMIN/PSEC/PFRAME differ based on the POINT, however.
+    entries[i].pmin   = bcd(cue_get_pmin(cue_get_point(i + 1), cue_data));
+    entries[i].psec   = bcd(cue_get_psec(cue_get_point(i + 1), cue_data));
+    entries[i].pframe = bcd(cue_get_pframe(cue_get_point(i + 1), cue_data));
+  }
+
+  cd_delete(cue_data);
+  return entries;
+}
+
+void *create_toc_ccd(char *iso_name, int *size) {
   int iso_name_length = strlen(iso_name);
   char *ccd_name = (char *)malloc((iso_name_length + 1) * sizeof(char));
   char entry_header[10];
@@ -256,7 +421,7 @@ void convert(char *input, char *output, char *title, char *code,
     toc_size = getsize(t);
     toc = 1;
     fclose(t);
-  } else if ((tocptr = create_toc(input, &toc_size)) != NULL) {
+  } else if ((tocptr = create_toc_ccd(input, &toc_size)) != NULL) {
     toc = 2;
   } else {
     toc = 0;
