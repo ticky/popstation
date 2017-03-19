@@ -1225,7 +1225,7 @@ void SetSFOTitle(char *sfo, char *title)
 char buffer[1*1048576];
 char buffer2[0x9300];
 
-int pic0 = 0, pic1 = 0, icon0 = 0, icon1 = 0, snd = 0, toc = 0;
+int pic0 = 0, pic1 = 0, icon0 = 0, icon1 = 0, snd = 0, toc = 0, prx = 0;
 int sfo_size, pic0_size, pic1_size, icon0_size, icon1_size, snd_size, toc_size, prx_size;
 int start_dat = 0;
 unsigned int psp_header[0x30/4];
@@ -1372,10 +1372,24 @@ void convert(char *input, char *output, char *title, char *code, int complevel)
 		toc = 0;
 	}
 
-	fseek(base, base_header[8], SEEK_SET);
-	fread(psp_header, 1, 0x30, base);
+	t = fopen("DATA.PSP", "rb");
+	if (toc == 0 && t)
+	{
+		prx_size = getsize(t);
+		prx = 1;
+		fclose(t);
+	}
+	else
+	{
+		if (t) {
+			fclose(t);
+		}
 
-	prx_size = psp_header[0x2C/4];
+		fseek(base, base_header[8], SEEK_SET);
+		fread(psp_header, 1, 0x30, base);
+
+		prx_size = psp_header[0x2C/4];
+	}
 
 	int curoffs = 0x28;
 
@@ -1490,9 +1504,20 @@ void convert(char *input, char *output, char *title, char *code, int complevel)
 	}
 
 	printf("Writing DATA.PSP...\n");
-	fseek(base, base_header[8], SEEK_SET);
-	fread(buffer, 1, prx_size, base);
-	fwrite(buffer, 1, prx_size, out);
+
+	if (prx)
+	{
+		t = fopen("DATA.PSP", "rb");
+		fread(buffer, 1, prx_size, t);
+		fwrite(buffer, 1, prx_size, out);
+		fclose(t);
+	}
+	else
+	{
+		fseek(base, base_header[8], SEEK_SET);
+		fread(buffer, 1, prx_size, base);
+		fwrite(buffer, 1, prx_size, out);
+	}
 
 	offset = ftell(out);
 
