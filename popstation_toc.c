@@ -1024,9 +1024,9 @@ unsigned char bcd(unsigned char value)
 // wrapper for iniparser_getstring to let you specify a section and key separately
 char* ini_get_string_from_section(dictionary* dict, const char* section, const char* key, char* def)
 {
-	int key_length = strlen(key);
-	char* joined_key = (char*)malloc((9 + key_length + 1) * sizeof(char));
-	snprintf(joined_key, 9 + key_length, "%s:%s", section, key);
+	int key_length = strlen(section) + 1 + strlen(key) + 1;
+	char* joined_key = (char*)malloc(key_length * sizeof(char));
+	snprintf(joined_key, key_length, "%s:%s", section, key);
 	return iniparser_getstring(dict, joined_key, def);
 }
 
