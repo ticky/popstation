@@ -1161,7 +1161,7 @@ int deflateCompress(void *inbuf, int insize, void *outbuf, int outsize, int leve
 }
 
 #ifndef WIN32
-typedef struct  __attribute__((packed))
+typedef struct __attribute__((packed))
 #else
 #pragma pack(1)
 typedef struct
