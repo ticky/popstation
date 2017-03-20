@@ -418,8 +418,10 @@ void convert(char *input, char *output, char *title, char *code,
     toc_size = getsize(t);
     toc = 1;
     fclose(t);
-  } else if ((tocptr = create_toc_ccd(input, &toc_size)) != NULL) {
+  } else if ((tocptr = create_toc_cue(input, &toc_size)) != NULL) {
     toc = 2;
+  } else if ((tocptr = create_toc_ccd(input, &toc_size)) != NULL) {
+    toc = 3;
   } else {
     toc = 0;
   }
@@ -583,7 +585,7 @@ void convert(char *input, char *output, char *title, char *code,
       fread(buffer, 1, toc_size, t);
       memcpy(data1 + 1024, buffer, toc_size);
       fclose(t);
-    } else if (toc == 2) {
+    } else if (toc == 2 || toc == 3) {
       memcpy(data1 + 1024, tocptr, toc_size);
       free(tocptr);
     }
