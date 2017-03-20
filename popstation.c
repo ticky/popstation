@@ -169,7 +169,7 @@ void *create_toc_cue(char *iso_name, int *size) {
   entries[1].pframe = bcd(0x00);
 
   // Next Q subchannel contains data about the lead-out area.
-  track_data = cd_get_track(cue_data, 1);
+  track_data = cd_get_track(cue_data, count);
   entries[2].control = cue_get_control(track_data);
   entries[2].adr = 0x01;
   entries[2].tno = 0x00;
