@@ -163,6 +163,7 @@ void *create_toc_cue(char *iso_name, int *size) {
   entries[1].amin   = bcd(0x00);
   entries[1].asec   = bcd(0x00);
   entries[1].aframe = bcd(0x00);
+  entries[1].zero = 0x00;
   // Defines the last track of the program area
   entries[1].pmin   = bcd(count);
   // Always zero.
@@ -178,6 +179,7 @@ void *create_toc_cue(char *iso_name, int *size) {
   entries[2].amin   = bcd(0x00);
   entries[2].asec   = bcd(0x00);
   entries[2].aframe = bcd(0x00);
+  entries[2].zero = 0x00;
   // Start time of the leadout area
   index = track_get_start(track_data) + track_get_length(track_data);
   entries[2].pmin   = bcd(index_get_min(index));
