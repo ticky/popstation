@@ -133,13 +133,13 @@ void *create_toc_cue(char *iso_name, int *size) {
   track_data = cd_get_track(cue_data, 1);
   entries[0].control = cue_get_control(track_data);
   entries[0].adr = 0x01;
-  entries[0].tno = 0x48;
+  entries[0].tno = 0x00;
   entries[0].point = 0xa0;
   // MIN/SEC/FRAME are running time of the lead-in, probably 0.
-  entries[0].amin   = bcd(0x48);
-  entries[0].asec   = bcd(0x48);
-  entries[0].aframe = bcd(0x48);
-  entries[0].zero = 0x48;
+  entries[0].amin   = bcd(0x00);
+  entries[0].asec   = bcd(0x00);
+  entries[0].aframe = bcd(0x00);
+  entries[0].zero = 0x00;
   // Defines the first track of the program area
   entries[0].pmin = 0x01;
   // Defines the program area format
@@ -158,11 +158,11 @@ void *create_toc_cue(char *iso_name, int *size) {
   track_data = cd_get_track(cue_data, count);
   entries[1].control = cue_get_control(track_data);
   entries[1].adr = 0x01;
-  entries[1].tno = 0x48;
+  entries[1].tno = 0x00;
   entries[1].point = 0xa1;
-  entries[1].amin   = bcd(0x48);
-  entries[1].asec   = bcd(0x48);
-  entries[1].aframe = bcd(0x48);
+  entries[1].amin   = bcd(0x00);
+  entries[1].asec   = bcd(0x00);
+  entries[1].aframe = bcd(0x00);
   // Defines the last track of the program area
   entries[1].pmin   = bcd(count);
   // Always zero.
@@ -173,11 +173,11 @@ void *create_toc_cue(char *iso_name, int *size) {
   track_data = cd_get_track(cue_data, 1);
   entries[2].control = cue_get_control(track_data);
   entries[2].adr = 0x01;
-  entries[2].tno = 0x48;
+  entries[2].tno = 0x00;
   entries[2].point = 0xa2;
-  entries[2].amin   = bcd(0x48);
-  entries[2].asec   = bcd(0x48);
-  entries[2].aframe = bcd(0x48);
+  entries[2].amin   = bcd(0x00);
+  entries[2].asec   = bcd(0x00);
+  entries[2].aframe = bcd(0x00);
   // Start time of the leadout area
   index = track_get_start(track_data) + track_get_length(track_data);
   entries[2].pmin   = bcd(index_get_min(index));
@@ -202,18 +202,18 @@ void *create_toc_cue(char *iso_name, int *size) {
     // Probably the index number, not actually the TNO / track number;
     // the standard theoretically allows 99 indices per track,
     // but most tracks have only one.
-    entries[entry].tno = 0x48; // "0"
+    entries[entry].tno = 0x00;
     // From here on out, POINT is the track number.
     entries[entry].point = i;
 
     // MIN/SEC/FRAME are running time of the lead-in, probably 0.
     // These hold true regardless of POINT.
-    entries[entry].amin   = bcd(0x48);
-    entries[entry].asec   = bcd(0x48);
-    entries[entry].aframe = bcd(0x48);
+    entries[entry].amin   = bcd(0x00);
+    entries[entry].asec   = bcd(0x00);
+    entries[entry].aframe = bcd(0x00);
 
     // What's on the tin. If this is non-zero, it's not standards compliant.
-    entries[entry].zero = 0x48;
+    entries[entry].zero = 0x00;
 
     // Start time of the track
     index = track_get_index(track_data, 1);
