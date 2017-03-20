@@ -109,7 +109,6 @@ void *create_toc_cue(char *iso_name, int *size) {
     printf("No CUE file found. Assuming this is a pure-ISO9660 image!\n");
     return NULL;
   }
-  fclose(cue_file);
 
   printf("Making TOC from CUE file \"%s\"...\n", cue_name);
 
@@ -224,6 +223,7 @@ void *create_toc_cue(char *iso_name, int *size) {
   }
 
   cd_delete(cue_data);
+  fclose(cue_file);
   return entries;
 }
 
