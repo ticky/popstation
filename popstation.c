@@ -77,6 +77,18 @@ int cue_get_control(Track *track) {
   }
 }
 
+int index_get_min(int index) {
+  return index / 75 / 60;
+}
+
+int index_get_sec(int index) {
+  return (index / 75) % 60;
+}
+
+int index_get_frame(int index) {
+  return index % 75;
+}
+
 // TODO this probably reproduces too much logic from create_toc_ccd
 void *create_toc_cue(char *iso_name, int *size) {
   int iso_name_length = strlen(iso_name);
@@ -85,7 +97,7 @@ void *create_toc_cue(char *iso_name, int *size) {
   Cd *cue_data;
   Track *track_data;
   tocentry *entries;
-  int count, i, entry;
+  int count, i, index, entry;
   char tno;
 
   strcpy(cue_name, iso_name);
@@ -155,7 +167,6 @@ void *create_toc_cue(char *iso_name, int *size) {
   entries[1].pmin   = bcd(count);
   // Always zero.
   entries[1].psec   = bcd(0x00);
-  // Start time of the leadout area
   entries[1].pframe = bcd(0x00);
 
   // Next Q subchannel contains data about the lead-out area.
@@ -168,10 +179,10 @@ void *create_toc_cue(char *iso_name, int *size) {
   entries[2].asec   = bcd(0x48);
   entries[2].aframe = bcd(0x48);
   // Start time of the leadout area
-  // FIXME this is wrong
-  entries[2].pmin   = bcd(0x00);
-  entries[2].psec   = bcd(0x00);
-  entries[2].pframe = bcd(0x00);
+  index = track_get_start(track_data) + track_get_length(track_data);
+  entries[2].pmin   = bcd(index_get_min(index));
+  entries[2].psec   = bcd(index_get_sec(index));
+  entries[2].pframe = bcd(index_get_frame(index));
 
   // Next, we start on the actual track data.
   // Each subsequent entry contains information about the position of the tracks.
@@ -205,10 +216,10 @@ void *create_toc_cue(char *iso_name, int *size) {
     entries[entry].zero = 0x48;
 
     // Start time of the track
-    // FIXME this is still wrong
-    entries[entry].pmin   = bcd(0x00);
-    entries[entry].psec   = bcd(0x00);
-    entries[entry].pframe = bcd(0x00);
+    index = track_get_index(track_data, 1);
+    entries[entry].pmin   = bcd(index_get_min(index));
+    entries[entry].psec   = bcd(index_get_sec(index));
+    entries[entry].pframe = bcd(index_get_frame(index));
   }
 
   cd_delete(cue_data);
