@@ -98,7 +98,6 @@ void *create_toc_cue(char *iso_name, int *size) {
   Track *track_data;
   tocentry *entries;
   int count, i, index, entry;
-  char tno;
 
   strcpy(cue_name, iso_name);
   cue_name[iso_name_length - 3] = 'c';
