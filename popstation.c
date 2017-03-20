@@ -107,7 +107,7 @@ void *create_toc_cue(char *iso_name, int *size) {
 
   cue_file = fopen(cue_name, "rb");
   if (!cue_file) {
-    printf("No CCD file found. Assuming this is a pure-ISO9660 image!\n");
+    printf("No CUE file found. Assuming this is a pure-ISO9660 image!\n");
     return NULL;
   }
   fclose(cue_file);
@@ -119,7 +119,7 @@ void *create_toc_cue(char *iso_name, int *size) {
   count = cd_get_ntrack(cue_data);
 
   if (count > 1) {
-    printf("Failed to get TOC count from CCD, are you sure it's a valid CCD "
+    printf("Failed to get TOC count from CUE, are you sure it's a valid CUE "
            "file?\n");
 
     return NULL;
