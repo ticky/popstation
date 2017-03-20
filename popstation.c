@@ -77,6 +77,19 @@ int cue_get_control(Track *track) {
   }
 }
 
+long cue_get_pregap(Track *track) {
+  long pre;
+  // Zero-filled pregap, e.g. PREGAP statement
+  if ((pre = track_get_zero_pre(track)) > 0) {
+    return pre;
+  // "INDEX 00" before the track content, which could contain zeros or actual content
+  } else if ((pre = track_get_index(track, 0) - track_get_start(track)) > 0) {
+    return pre;
+  } else {
+    return 0;
+  }
+}
+
 int index_get_min(int index) {
   return index / 75 / 60;
 }
@@ -98,6 +111,7 @@ void *create_toc_cue(char *iso_name, int *size) {
   Track *track_data;
   tocentry *entries;
   int count, i, index, entry;
+  long pre;
 
   strcpy(cue_name, iso_name);
   cue_name[iso_name_length - 3] = 'c';
@@ -179,7 +193,8 @@ void *create_toc_cue(char *iso_name, int *size) {
   entries[2].aframe = bcd(0x00);
   entries[2].zero = 0x00;
   // Start time of the leadout area
-  index = track_get_start(track_data) + track_get_length(track_data);
+  pre = cue_get_pregap(track_data);
+  index = track_get_start(track_data) + track_get_length(track_data) + pre;
   entries[2].pmin   = bcd(index_get_min(index));
   entries[2].psec   = bcd(index_get_sec(index));
   entries[2].pframe = bcd(index_get_frame(index));
@@ -206,17 +221,18 @@ void *create_toc_cue(char *iso_name, int *size) {
     // From here on out, POINT is the track number.
     entries[entry].point = i;
 
-    // MIN/SEC/FRAME are running time of the lead-in, probably 0.
-    // These hold true regardless of POINT.
-    entries[entry].amin   = bcd(0x00);
-    entries[entry].asec   = bcd(0x00);
-    entries[entry].aframe = bcd(0x00);
+    // MIN/SEC/FRAME are running time of the lead-in.
+    // A common value is a two-second pregap.
+    pre = cue_get_pregap(track_data);
+    entries[entry].amin   = bcd(index_get_min(pre));
+    entries[entry].asec   = bcd(index_get_sec(pre));
+    entries[entry].aframe = bcd(index_get_frame(pre));
 
     // What's on the tin. If this is non-zero, it's not standards compliant.
     entries[entry].zero = 0x00;
 
     // Start time of the track
-    index = track_get_index(track_data, 1);
+    index = track_get_index(track_data, 1) + pre;
     entries[entry].pmin   = bcd(index_get_min(index));
     entries[entry].psec   = bcd(index_get_sec(index));
     entries[entry].pframe = bcd(index_get_frame(index));
