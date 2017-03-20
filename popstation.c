@@ -116,7 +116,7 @@ void *create_toc_cue(char *iso_name, int *size) {
 
   count = cd_get_ntrack(cue_data);
 
-  if (count > 1) {
+  if (count < 1) {
     printf("Failed to get TOC count from CUE, are you sure it's a valid CUE "
            "file?\n");
 
