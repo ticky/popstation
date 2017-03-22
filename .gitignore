@@ -1,3 +1,4 @@
+*.o
 *.PBP
 popstation
 popstation_md
