@@ -9,6 +9,7 @@
 #include <windows.h>
 #endif
 #include "iniparser.h"
+#include "libcue.h"
 #include <zlib.h>
 
 #include "common.h"
@@ -65,7 +66,184 @@ char *ini_get_string_from_section(dictionary *dict, const char *section,
   return iniparser_getstring(dict, joined_key, def);
 }
 
-void *create_toc(char *iso_name, int *size) {
+int cue_get_control(Track *track) {
+  enum TrackMode mode = track_get_mode(track);
+  // TODO handle emphasis and quad-channel audio
+  if (mode == MODE_AUDIO) {
+    return 0x00;
+  // data
+  } else {
+    return 0x04;
+  }
+}
+
+long cue_get_pregap(Track *track) {
+  long pre;
+  // Zero-filled pregap, e.g. PREGAP statement
+  if ((pre = track_get_zero_pre(track)) > 0) {
+    return pre;
+  // "INDEX 00" before the track content, which could contain zeros or actual content
+  } else if ((pre = track_get_index(track, 0) - track_get_start(track)) > 0) {
+    return pre;
+  } else {
+    return 0;
+  }
+}
+
+int index_get_min(int index) {
+  return index / 75 / 60;
+}
+
+int index_get_sec(int index) {
+  return (index / 75) % 60;
+}
+
+int index_get_frame(int index) {
+  return index % 75;
+}
+
+// TODO this probably reproduces too much logic from create_toc_ccd
+void *create_toc_cue(char *iso_name, int *size) {
+  int iso_name_length = strlen(iso_name);
+  char *cue_name = (char *)malloc((iso_name_length + 1) * sizeof(char));
+  FILE *cue_file;
+  Cd *cue_data;
+  Track *track_data;
+  tocentry *entries;
+  int count, i, index, entry;
+  long pre;
+
+  strcpy(cue_name, iso_name);
+  cue_name[iso_name_length - 3] = 'c';
+  cue_name[iso_name_length - 2] = 'u';
+  cue_name[iso_name_length - 1] = 'e';
+
+  cue_file = fopen(cue_name, "rb");
+  if (!cue_file) {
+    printf("No CUE file found. Assuming this is a pure-ISO9660 image!\n");
+    return NULL;
+  }
+
+  printf("Making TOC from CUE file \"%s\"...\n", cue_name);
+
+  cue_data = cue_parse_file(cue_file);
+
+  count = cd_get_ntrack(cue_data);
+
+  if (count < 1) {
+    printf("Failed to get TOC count from CUE, are you sure it's a valid CUE "
+           "file?\n");
+
+    return NULL;
+  }
+
+  entries = (tocentry *)malloc(sizeof(tocentry) * (count + 3));
+
+  // Before the actual track content begins, the first three "tracks"
+  // are Q subchannels with control data about the structure of the disc.
+  // The first contains information about the first track in the program area.
+  track_data = cd_get_track(cue_data, 1);
+  entries[0].control = cue_get_control(track_data);
+  entries[0].adr = 0x01;
+  entries[0].tno = 0x00;
+  entries[0].point = 0xa0;
+  // MIN/SEC/FRAME are running time of the lead-in, probably 0.
+  entries[0].amin   = bcd(0x00);
+  entries[0].asec   = bcd(0x00);
+  entries[0].aframe = bcd(0x00);
+  entries[0].zero = 0x00;
+  // Defines the first track of the program area
+  entries[0].pmin = 0x01;
+  // Defines the program area format
+  switch(cd_get_mode(cue_data)) {
+    case MODE_CD_DA:
+    case MODE_CD_ROM:
+      entries[0].psec = bcd(0x00);
+    case MODE_CD_ROM_XA:
+      entries[0].psec = bcd(0x20);
+    default:
+      entries[0].psec = bcd(0x20);
+  }
+  entries[0].pframe = bcd(0x00);
+
+  // Next Q subchannel contains data about the last track in the program area.
+  track_data = cd_get_track(cue_data, count);
+  entries[1].control = cue_get_control(track_data);
+  entries[1].adr = 0x01;
+  entries[1].tno = 0x00;
+  entries[1].point = 0xa1;
+  entries[1].amin   = bcd(0x00);
+  entries[1].asec   = bcd(0x00);
+  entries[1].aframe = bcd(0x00);
+  entries[1].zero = 0x00;
+  // Defines the last track of the program area
+  entries[1].pmin   = bcd(count);
+  // Always zero.
+  entries[1].psec   = bcd(0x00);
+  entries[1].pframe = bcd(0x00);
+
+  // Next Q subchannel contains data about the lead-out area.
+  track_data = cd_get_track(cue_data, count);
+  entries[2].control = cue_get_control(track_data);
+  entries[2].adr = 0x01;
+  entries[2].tno = 0x00;
+  entries[2].point = 0xa2;
+  entries[2].amin   = bcd(0x00);
+  entries[2].asec   = bcd(0x00);
+  entries[2].aframe = bcd(0x00);
+  entries[2].zero = 0x00;
+  // Start time of the leadout area
+  pre = cue_get_pregap(track_data);
+  index = track_get_start(track_data) + track_get_length(track_data) + pre;
+  entries[2].pmin   = bcd(index_get_min(index));
+  entries[2].psec   = bcd(index_get_sec(index));
+  entries[2].pframe = bcd(index_get_frame(index));
+
+  // Next, we start on the actual track data.
+  // Each subsequent entry contains information about the position of the tracks.
+  for (i = 1; i <= count; i++) {
+    entry = i + 2;
+    track_data = cd_get_track(cue_data, i);
+    entries[entry].control = cue_get_control(track_data) & 0xF;
+
+    // Mode-1 Q is the most likely mode we're going to encounter;
+    // Mode-2 Q assigns the Media Catalog Number, and
+    // Mode-3 Q assigns a unique International Standard Recording Code
+    // to the track.
+    // In practice, even if those other values are in the cuesheet, they're
+    // not important to this usecase.
+    entries[entry].adr = 0x01;
+
+    // Probably the index number, not actually the TNO / track number;
+    // the standard theoretically allows 99 indices per track,
+    // but most tracks have only one.
+    entries[entry].tno = 0x00;
+    // From here on out, POINT is the track number.
+    entries[entry].point = i;
+
+    // MIN/SEC/FRAME are running time of the lead-in.
+    // A common value is a two-second pregap.
+    pre = cue_get_pregap(track_data);
+    entries[entry].amin   = bcd(index_get_min(pre));
+    entries[entry].asec   = bcd(index_get_sec(pre));
+    entries[entry].aframe = bcd(index_get_frame(pre));
+
+    // What's on the tin. If this is non-zero, it's not standards compliant.
+    entries[entry].zero = 0x00;
+
+    // Start time of the track
+    index = track_get_index(track_data, 1) + pre;
+    entries[entry].pmin   = bcd(index_get_min(index));
+    entries[entry].psec   = bcd(index_get_sec(index));
+    entries[entry].pframe = bcd(index_get_frame(index));
+  }
+
+  cd_delete(cue_data);
+  fclose(cue_file);
+  return entries;
+}
+
+void *create_toc_ccd(char *iso_name, int *size) {
   int iso_name_length = strlen(iso_name);
   char *ccd_name = (char *)malloc((iso_name_length + 1) * sizeof(char));
   char entry_header[10];
@@ -256,8 +434,10 @@ void convert(char *input, char *output, char *title, char *code,
     toc_size = getsize(t);
     toc = 1;
     fclose(t);
-  } else if ((tocptr = create_toc(input, &toc_size)) != NULL) {
+  } else if ((tocptr = create_toc_cue(input, &toc_size)) != NULL) {
     toc = 2;
+  } else if ((tocptr = create_toc_ccd(input, &toc_size)) != NULL) {
+    toc = 3;
   } else {
     toc = 0;
   }
@@ -421,7 +601,7 @@ void convert(char *input, char *output, char *title, char *code,
       fread(buffer, 1, toc_size, t);
       memcpy(data1 + 1024, buffer, toc_size);
       fclose(t);
-    } else if (toc == 2) {
+    } else if (toc == 2 || toc == 3) {
       memcpy(data1 + 1024, tocptr, toc_size);
       free(tocptr);
     }

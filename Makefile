@@ -9,7 +9,7 @@ popstation_md: popstation_md.o common.o
 	$(LINK.c) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 popstation: popstation.o common.o
-	$(LINK.c) $(LDFLAGS) -o $@ $^ $(LIBS) -liniparser
+	$(LINK.c) $(LDFLAGS) -o $@ $^ $(LIBS) -liniparser -lcue
 
 clean:
 	rm -f popstation_md popstation *.o
